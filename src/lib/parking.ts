@@ -23,6 +23,13 @@ export function formatDuration(fromIso: string, toIso: string): string {
   return `${hours} jam ${minutes} mnt`;
 }
 
+export function formatDateShort(dateIso: string): string {
+  return new Date(dateIso + (dateIso.length === 10 ? "T00:00:00" : "")).toLocaleDateString(
+    "id-ID",
+    { day: "2-digit", month: "short", year: "numeric" },
+  );
+}
+
 export function formatDateTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString("id-ID", {

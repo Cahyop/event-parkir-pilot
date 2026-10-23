@@ -6,7 +6,7 @@ import { CalendarDays, ChevronRight, Plus } from "lucide-react";
 import { fetchEventsWithCache } from "@/lib/ticket-store";
 import { supabase } from "@/integrations/supabase/client";
 import type { ParkingEvent } from "@/lib/types";
-import { formatDateShort } from "@/lib/parking-view";
+import { formatDateShort } from "@/lib/parking";
 
 export const Route = createFileRoute("/")({
   component: Index,
