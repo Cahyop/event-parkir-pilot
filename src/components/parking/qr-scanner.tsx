@@ -1,6 +1,6 @@
-import { QRCode } from "html5-qrcode";
 import { useEffect, useRef, useState } from "react";
 import { Camera, CameraOff } from "lucide-react";
+import type { Html5Qrcode } from "html5-qrcode";
 
 interface QrScannerProps {
   onResult: (text: string) => void;
@@ -9,7 +9,7 @@ interface QrScannerProps {
 export function QrScanner({ onResult }: QrScannerProps) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const instanceRef = useRef<QRCode | null>(null);
+  const instanceRef = useRef<Html5Qrcode | null>(null);
   const lastRef = useRef<{ text: string; at: number } | null>(null);
   const cbRef = useRef(onResult);
   cbRef.current = onResult;
