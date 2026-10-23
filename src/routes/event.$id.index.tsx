@@ -1,11 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useLoaderData } from "@tanstack/react-router";
+import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { useState } from "react";
 import { CloudOff, LogIn } from "lucide-react";
 import { toast } from "sonner";
 
-import { useLoaderData, useRouteContext } from "@tanstack/react-router";
-import { eventQueryOptions } from "./event.$id";
 import { useTickets } from "@/hooks/use-tickets";
 import { PlateInput } from "@/components/parking/plate-input";
 import { TicketCard } from "@/components/parking/ticket-card";

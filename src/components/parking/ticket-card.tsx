@@ -1,4 +1,4 @@
-import { QRCode } from "qrcode";
+import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { Printer, Smartphone } from "lucide-react";
 
@@ -137,7 +137,13 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
   );
 }
 
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+export interface RowProps {
+  label: string;
+  value: string;
+  strong?: boolean;
+}
+
+export function Row({ label, value, strong }: RowProps) {
   return (
     <div className="flex items-center justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>
