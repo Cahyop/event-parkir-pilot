@@ -55,12 +55,15 @@ function CheckOutPage() {
 
   const onScan = async (text: string) => {
     const code = text.trim().toUpperCase();
-    let found = tickets.find((t) => t.code.toUpperCase() === code);
+    let found: Ticket | undefined = tickets.find((t) => t.code.toUpperCase() === code);
     if (!found && online) {
       setSearching(true);
       try {
-        found = await fetchAndCacheTicket(event.id, code);
-        if (found) await refresh();
+        const fetched = await fetchAndCacheTicket(event.id, code);
+        if (fetched) {
+          found = fetched;
+          await refresh();
+        }
       } catch (e) {
         console.error(e);
       } finally {
