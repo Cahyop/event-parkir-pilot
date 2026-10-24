@@ -69,7 +69,7 @@ function EventLayout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-28 pt-4">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-20 pt-3">
         <Outlet />
       </main>
 

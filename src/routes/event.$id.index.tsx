@@ -78,32 +78,52 @@ function CheckInPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+      className="space-y-3"
+    >
       {pending > 0 && (
-        <div className="flex items-center gap-2 rounded-xl bg-warning/15 px-3 py-2.5 text-sm font-medium text-warning-foreground">
-          <CloudOff className="size-4 shrink-0" aria-hidden />
-          {pending} karcis menunggu sinkron ke server — akan terkirim otomatis saat online.
+        <div className="flex items-center gap-2 rounded-xl bg-warning/15 px-3 py-2 text-xs font-medium text-warning-foreground">
+          <CloudOff className="size-3.5 shrink-0" aria-hidden />
+          {pending} karcis menunggu sinkron otomatis saat online.
         </div>
       )}
 
+      {/* Jenis Kendaraan */}
       <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          Jenis Kendaraan
-        </h2>
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(vehicleTypes.length, 2)}, minmax(0, 1fr))` }}>
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Jenis Kendaraan
+          </h2>
+          {vehicleTypes.length === 1 && (
+            <span className="text-[11px] font-bold text-primary">
+              {formatRupiah(selected.tariff)}
+            </span>
+          )}
+        </div>
+        <div
+          className="grid gap-1.5"
+          style={{
+            gridTemplateColumns: `repeat(${Math.min(vehicleTypes.length, 3)}, minmax(0, 1fr))`,
+          }}
+        >
           {vehicleTypes.map((v, idx) => (
             <button
               key={v.name}
+              type="button"
               onClick={() => setTypeIdx(idx)}
               className={cn(
-                "flex h-20 flex-col items-center justify-center rounded-xl border-2 px-2 transition-colors",
+                "flex h-12 items-center justify-between rounded-xl border-2 px-3 transition-colors",
                 idx === typeIdx
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border bg-card text-foreground hover:bg-accent",
               )}
             >
-              <span className="font-display text-base font-bold">{v.name}</span>
-              <span className="tabular text-xs font-semibold text-muted-foreground">
+              <span className="font-display text-sm font-bold">{v.name}</span>
+              <span className="tabular text-xs font-semibold">
                 {formatRupiah(v.tariff)}
               </span>
             </button>
@@ -111,64 +131,63 @@ function CheckInPage() {
         </div>
       </section>
 
+      {/* Nomor Polisi */}
       <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
           Nomor Polisi
         </h2>
-        <PlateInput value={plate} onChange={setPlate} />
+        <PlateInput value={plate} onChange={setPlate} onSubmit={submit} />
       </section>
 
+      {/* Status Pembayaran */}
       <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        <h2 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
           Status Pembayaran
         </h2>
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <button
+            type="button"
             onClick={() => setPayment("prepaid")}
             className={cn(
-              "flex h-16 items-center justify-between rounded-xl border-2 px-4 text-left transition-colors",
+              "flex h-14 flex-col justify-center rounded-xl border-2 px-3 text-left transition-colors",
               payment === "prepaid"
-                ? "border-primary bg-primary/10"
-                : "border-border bg-card hover:bg-accent",
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-card text-foreground hover:bg-accent",
             )}
           >
-            <span>
-              <span className="block font-display text-base font-bold">Bayar di Awal</span>
-              <span className="block text-xs text-muted-foreground">Lunas sekarang</span>
-            </span>
-            <span className="tabular font-display text-lg font-bold text-primary">
+            <span className="font-display text-xs font-bold leading-tight">Bayar di Awal</span>
+            <span className="tabular mt-0.5 text-xs font-bold text-primary">
               {formatRupiah(selected.tariff)}
             </span>
           </button>
           <button
+            type="button"
             onClick={() => setPayment("unpaid")}
             className={cn(
-              "flex h-16 items-center justify-between rounded-xl border-2 px-4 text-left transition-colors",
+              "flex h-14 flex-col justify-center rounded-xl border-2 px-3 text-left transition-colors",
               payment === "unpaid"
-                ? "border-primary bg-primary/10"
-                : "border-border bg-card hover:bg-accent",
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-card text-foreground hover:bg-accent",
             )}
           >
-            <span>
-              <span className="block font-display text-base font-bold">Bayar Nanti</span>
-              <span className="block text-xs text-muted-foreground">Ditagih saat keluar</span>
-            </span>
-            <span className="tabular font-display text-lg font-bold text-foreground">
+            <span className="font-display text-xs font-bold leading-tight">Bayar Nanti</span>
+            <span className="tabular mt-0.5 text-xs font-bold text-muted-foreground">
               {formatRupiah(0)}
             </span>
           </button>
         </div>
       </section>
 
+      {/* Tombol Check-in & Cetak Karcis */}
       <Button
-        onClick={submit}
+        type="submit"
         disabled={submitting}
-        className="h-16 w-full text-lg font-bold"
+        className="h-14 w-full text-base font-bold shadow-md"
         size="lg"
       >
-        <LogIn className="size-6" aria-hidden />
+        <LogIn className="size-5" aria-hidden />
         {submitting ? "Memproses…" : "CHECK-IN & CETAK KARCIS"}
       </Button>
-    </div>
+    </form>
   );
 }
