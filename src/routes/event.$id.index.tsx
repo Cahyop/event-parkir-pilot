@@ -58,6 +58,7 @@ function CheckInPage() {
   // Status Bluetooth & Template
   const [printerConnected, setPrinterConnected] = useState(() => isBluetoothPrinterConnected());
   const [printerName, setPrinterName] = useState(() => getConnectedPrinterName());
+  const [connectingPrinter, setConnectingPrinter] = useState(false);
   const [template, setTemplate] = useState<TicketTemplate>(() => getTicketTemplate());
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showPrinterGuide, setShowPrinterGuide] = useState(false);
@@ -72,6 +73,8 @@ function CheckInPage() {
   const selected = vehicleTypes[Math.min(typeIdx, vehicleTypes.length - 1)] ?? vehicleTypes[0]!;
 
   const handleConnectPrinter = async () => {
+    if (connectingPrinter) return;
+    setConnectingPrinter(true);
     try {
       const name = await connectBluetoothPrinter();
       setPrinterName(name);
@@ -93,6 +96,8 @@ function CheckInPage() {
           onClick: () => setShowPrinterGuide(true),
         },
       });
+    } finally {
+      setConnectingPrinter(false);
     }
   };
 
@@ -227,11 +232,12 @@ function CheckInPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              disabled={connectingPrinter}
               onClick={handleConnectPrinter}
-              className="flex items-center gap-1.5 font-semibold text-primary hover:underline"
+              className="flex items-center gap-1.5 font-semibold text-primary hover:underline disabled:opacity-60"
             >
-              <Bluetooth className="size-3.5" />
-              <span>Sambungkan Printer</span>
+              <Bluetooth className={cn("size-3.5", connectingPrinter && "animate-pulse")} />
+              <span>{connectingPrinter ? "Mencari Printer…" : "Sambungkan Printer"}</span>
             </button>
             <button
               type="button"
