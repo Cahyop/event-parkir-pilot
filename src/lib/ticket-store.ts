@@ -55,7 +55,7 @@ export function saveLocalTickets(eventId: string, tickets: Ticket[]) {
   lsSet(LOCAL_PREFIX + eventId, JSON.stringify(tickets));
 }
 
-function loadQueue(eventId: string): PendingOp[] {
+export function loadQueue(eventId: string): PendingOp[] {
   const raw = lsGet(QUEUE_PREFIX + eventId);
   if (!raw) return [];
   try {
@@ -65,7 +65,7 @@ function loadQueue(eventId: string): PendingOp[] {
   }
 }
 
-function saveQueue(eventId: string, ops: PendingOp[]) {
+export function saveQueue(eventId: string, ops: PendingOp[]) {
   lsSet(QUEUE_PREFIX + eventId, JSON.stringify(ops));
 }
 
@@ -184,7 +184,7 @@ export function updateTicketLocally(
   const local = loadLocalTickets(eventId);
   const idx = local.findIndex((t) => t.id === id);
   if (idx < 0) return null;
-  const updated: Ticket = { ...local[idx], ...patch };
+  const updated = { ...local[idx], ...patch } as Ticket;
   local[idx] = updated;
   saveLocalTickets(eventId, local);
   const queue = loadQueue(eventId);
@@ -218,6 +218,25 @@ export async function fetchEvent(id: string): Promise<ParkingEvent | null> {
   const { data, error } = await supabase.from("events").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return (data as unknown as ParkingEvent) ?? null;
+}
+
+/** Fetch one ticket by code (QR payload), merge it into the local cache, return it. */
+export async function fetchAndCacheTicket(eventId: string, code: string): Promise<Ticket | null> {
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("*")
+    .eq("event_id", eventId)
+    .ilike("code", code)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const ticket = data as unknown as Ticket;
+  const local = loadLocalTickets(eventId);
+  if (!local.some((t) => t.id === ticket.id)) {
+    local.unshift(ticket);
+    saveLocalTickets(eventId, local);
+  }
+  return ticket;
 }
 
 export async function createEvent(input: {

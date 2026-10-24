@@ -37,13 +37,15 @@ function CheckOutPage() {
   );
 
   const results = useMemo(() => {
-    const q = normalizePlate(query);
-    if (!q) return [];
+    const raw = query.trim().toUpperCase();
+    if (!raw) return [];
+    const plateQuery = normalizePlate(raw);
     return tickets
       .filter(
         (t) =>
           (t.exit_at === null || t.exit_at) &&
-          (normalizePlate(t.plate).includes(q) || t.code.toUpperCase().includes(q)),
+          (plateQuery && normalizePlate(t.plate).includes(plateQuery) ||
+            t.code.toUpperCase().includes(raw)),
       )
       .slice(0, 5);
   }, [tickets, query]);
@@ -55,12 +57,15 @@ function CheckOutPage() {
 
   const onScan = async (text: string) => {
     const code = text.trim().toUpperCase();
-    let found = tickets.find((t) => t.code.toUpperCase() === code);
+    let found: Ticket | undefined = tickets.find((t) => t.code.toUpperCase() === code);
     if (!found && online) {
       setSearching(true);
       try {
-        found = await fetchAndCacheTicket(event.id, code);
-        if (found) await refresh();
+        const fetched = await fetchAndCacheTicket(event.id, code);
+        if (fetched) {
+          found = fetched;
+          await refresh();
+        }
       } catch (e) {
         console.error(e);
       } finally {

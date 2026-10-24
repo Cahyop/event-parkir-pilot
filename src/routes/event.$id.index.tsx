@@ -33,7 +33,7 @@ function CheckInPage() {
   const vehicleTypes = event.vehicle_types.length
     ? event.vehicle_types
     : [{ name: "Motor", tariff: 3000 }];
-  const selected = vehicleTypes[Math.min(typeIdx, vehicleTypes.length - 1)];
+  const selected = vehicleTypes[Math.min(typeIdx, vehicleTypes.length - 1)] ?? vehicleTypes[0]!;
 
   const submit = async () => {
     if (plate.trim().length < 2) {

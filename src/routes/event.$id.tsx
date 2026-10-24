@@ -84,12 +84,10 @@ function EventLayout() {
               to={tab.to}
               params={{ id }}
               activeOptions={{ exact: tab.exact }}
-              className={({ isActive }) =>
-                cn(
-                  "flex h-16 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition-colors",
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
-                )
-              }
+              className={cn(
+                "flex h-16 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition-colors",
+                "text-muted-foreground hover:text-foreground data-[status=active]:text-primary",
+              )}
             >
               {({ isActive }) => (
                 <>
