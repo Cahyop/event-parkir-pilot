@@ -13,6 +13,16 @@ export function normalizePlate(raw: string): string {
   return raw.toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Normalizes event name for strict uniqueness check:
+ * Strips all spaces (front, middle, back) and lowercases.
+ * E.g. "  Konser   Musik  " -> "konsermusik"
+ * E.g. "K o n s e r Musik" -> "konsermusik"
+ */
+export function normalizeEventName(raw: string): string {
+  return raw.toLowerCase().replace(/\s+/g, "");
+}
+
 export function formatDuration(fromIso: string, toIso: string): string {
   const ms = Math.max(0, new Date(toIso).getTime() - new Date(fromIso).getTime());
   const totalMinutes = Math.floor(ms / 60000);

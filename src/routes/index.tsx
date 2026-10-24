@@ -1,12 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { CalendarDays, ChevronRight, Lock, Plus } from "lucide-react";
+import { CalendarDays, ChevronRight, Lock, Plus, Trash2 } from "lucide-react";
 
 import { fetchEventsWithCache } from "@/lib/ticket-store";
 import { supabase } from "@/integrations/supabase/client";
 import { isEventUnlocked } from "@/lib/event-pin";
 import { EventPinDialog } from "@/components/parking/event-pin-dialog";
+import { DeleteEventDialog } from "@/components/parking/delete-event-dialog";
 import type { ParkingEvent } from "@/lib/types";
 import { formatDateShort } from "@/lib/parking";
 
@@ -29,6 +30,8 @@ function Index() {
 
   const [selectedEvent, setSelectedEvent] = useState<ParkingEvent | null>(null);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<ParkingEvent | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { data: events, isLoading } = useQuery({
     queryKey: ["events"],
@@ -101,7 +104,15 @@ function Index() {
           ) : (
             <div className="space-y-3">
               {active.map((e) => (
-                <EventCard key={e.id} event={e} onSelect={handleSelectEvent} />
+                <EventCard
+                  key={e.id}
+                  event={e}
+                  onSelect={handleSelectEvent}
+                  onDelete={(item) => {
+                    setEventToDelete(item);
+                    setShowDeleteDialog(true);
+                  }}
+                />
               ))}
             </div>
           )}
@@ -114,7 +125,15 @@ function Index() {
             </h2>
             <div className="space-y-3">
               {archived.map((e) => (
-                <EventCard key={e.id} event={e} onSelect={handleSelectEvent} />
+                <EventCard
+                  key={e.id}
+                  event={e}
+                  onSelect={handleSelectEvent}
+                  onDelete={(item) => {
+                    setEventToDelete(item);
+                    setShowDeleteDialog(true);
+                  }}
+                />
               ))}
             </div>
           </section>
@@ -131,6 +150,14 @@ function Index() {
           }
         }}
       />
+
+      {eventToDelete && (
+        <DeleteEventDialog
+          event={eventToDelete}
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+        />
+      )}
     </div>
   );
 }
@@ -138,17 +165,26 @@ function Index() {
 function EventCard({
   event,
   onSelect,
+  onDelete,
 }: {
   event: ParkingEvent;
   onSelect: (e: ParkingEvent) => void;
+  onDelete: (e: ParkingEvent) => void;
 }) {
   return (
-    <button
-      type="button"
+    <div
       onClick={() => onSelect(event)}
-      className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/40 active:bg-accent"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(event);
+        }
+      }}
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/40 cursor-pointer active:bg-accent"
     >
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <p className="truncate font-display text-base font-semibold text-foreground">
             {event.name}
@@ -169,7 +205,22 @@ function EventCard({
           )}
         </p>
       </div>
-      <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-    </button>
+
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(event);
+          }}
+          className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          title="Hapus event ini (wajib PIN)"
+          aria-label="Hapus event"
+        >
+          <Trash2 className="size-4" />
+        </button>
+        <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+      </div>
+    </div>
   );
 }

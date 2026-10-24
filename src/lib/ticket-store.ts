@@ -258,6 +258,51 @@ export async function createEvent(input: {
   return data as unknown as ParkingEvent;
 }
 
+export async function renameEvent(id: string, newName: string): Promise<ParkingEvent> {
+  const clean = newName.trim();
+  const { data, error } = await supabase
+    .from("events")
+    .update({ name: clean })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+
+  // Update local cache
+  try {
+    const raw = lsGet(EVENTS_CACHE_KEY);
+    if (raw) {
+      const list = (JSON.parse(raw) as ParkingEvent[]).map((e) =>
+        e.id === id ? { ...e, name: clean } : e,
+      );
+      lsSet(EVENTS_CACHE_KEY, JSON.stringify(list));
+    }
+  } catch {}
+
+  return data as unknown as ParkingEvent;
+}
+
+export async function deleteEvent(id: string): Promise<void> {
+  // Hapus tickets terlebih dahulu
+  await supabase.from("tickets").delete().eq("event_id", id);
+  // Hapus event
+  const { error } = await supabase.from("events").delete().eq("id", id);
+  if (error) throw error;
+
+  // Bersihkan data lokal & cache terkait event ini
+  try {
+    window.localStorage.removeItem(LOCAL_PREFIX + id);
+    window.localStorage.removeItem(QUEUE_PREFIX + id);
+    window.localStorage.removeItem("parkir:pin:" + id);
+    window.sessionStorage.removeItem("parkir:unlocked:" + id);
+    const raw = lsGet(EVENTS_CACHE_KEY);
+    if (raw) {
+      const list = (JSON.parse(raw) as ParkingEvent[]).filter((e) => e.id !== id);
+      lsSet(EVENTS_CACHE_KEY, JSON.stringify(list));
+    }
+  } catch {}
+}
+
 export async function archiveEvent(id: string): Promise<void> {
   const { error } = await supabase.from("events").update({ status: "archived" }).eq("id", id);
   if (error) throw error;

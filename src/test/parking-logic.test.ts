@@ -6,9 +6,20 @@ import {
   formatRupiah,
   isPaid,
   makeTicketCode,
+  normalizeEventName,
   normalizePlate,
   paymentStatusLabel,
 } from "@/lib/parking";
+
+describe("normalizeEventName", () => {
+  it("strips front, middle, and back spaces and lowercases", () => {
+    expect(normalizeEventName("  Konser Musik  ")).toBe("konsermusik");
+    expect(normalizeEventName("Konser   Musik")).toBe("konsermusik");
+    expect(normalizeEventName("K O N S E R Musik")).toBe("konsermusik");
+    expect(normalizeEventName("konser musik")).toBe("konsermusik");
+    expect(normalizeEventName("KONSER MUSIK")).toBe("konsermusik");
+  });
+});
 
 describe("normalizePlate", () => {
   it("uppercases and collapses whitespace", () => {

@@ -1,11 +1,13 @@
 import { createFileRoute, Link, Outlet, notFound, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowLeft, KeyRound, Lock, ShieldCheck } from "lucide-react";
+import { ArrowLeft, KeyRound, Lock, Pencil, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { fetchEvent } from "@/lib/ticket-store";
 import { hasEventPin, isEventUnlocked, lockEvent, setEventPin, unlockEvent } from "@/lib/event-pin";
+import { RenameEventDialog } from "@/components/parking/rename-event-dialog";
+import { DeleteEventDialog } from "@/components/parking/delete-event-dialog";
 import type { ParkingEvent } from "@/lib/types";
 import { formatDateShort } from "@/lib/parking";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,8 @@ function EventLayout() {
   const [unlocked, setUnlocked] = useState(() => isEventUnlocked(id));
   const [pinInput, setPinInput] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleUnlock = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -107,23 +111,48 @@ function EventLayout() {
             <ArrowLeft className="size-5" aria-hidden />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate font-display text-lg font-bold tracking-tight text-foreground">
-              {event.name}
-            </h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="truncate font-display text-lg font-bold tracking-tight text-foreground">
+                {event.name}
+              </h1>
+              {unlocked && (
+                <button
+                  type="button"
+                  onClick={() => setShowRenameModal(true)}
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  title="Ubah nama event (Rename)"
+                  aria-label="Ubah nama event"
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+              )}
+            </div>
             <p className="truncate text-xs text-muted-foreground">
               {event.event_date ? formatDateShort(event.event_date) : "Tanpa tanggal"} ·{" "}
               {event.vehicle_types.map((v) => v.name).join(", ")}
             </p>
           </div>
           {unlocked && (
-            <button
-              onClick={handleLock}
-              className="inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              title="Kunci sesi event"
-              aria-label="Kunci event"
-            >
-              <Lock className="size-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                className="inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                title="Hapus event ini (Wajib PIN)"
+                aria-label="Hapus event"
+              >
+                <Trash2 className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleLock}
+                className="inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                title="Kunci sesi event"
+                aria-label="Kunci event"
+              >
+                <Lock className="size-4" />
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -252,6 +281,20 @@ function EventLayout() {
           </nav>
         </>
       )}
+
+      {/* Dialog Ubah Nama Event */}
+      <RenameEventDialog
+        event={event}
+        open={showRenameModal}
+        onOpenChange={setShowRenameModal}
+      />
+
+      {/* Dialog Hapus Event dengan PIN */}
+      <DeleteEventDialog
+        event={event}
+        open={showDeleteModal}
+        onOpenChange={setShowDeleteModal}
+      />
     </div>
   );
 }

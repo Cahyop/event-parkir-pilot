@@ -3,8 +3,9 @@ import { useState } from "react";
 import { ArrowLeft, Lock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { createEvent } from "@/lib/ticket-store";
+import { createEvent, fetchEventsWithCache } from "@/lib/ticket-store";
 import { setEventPin, unlockEvent } from "@/lib/event-pin";
+import { normalizeEventName } from "@/lib/parking";
 import type { VehicleType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,7 @@ const PRESETS: Array<VehicleType & { label: string }> = [
 function NewEventPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0] || "");
   const [pin, setPin] = useState("");
   const [types, setTypes] = useState<VehicleType[]>([{ name: "Motor", tariff: 3000 }]);
   const [saving, setSaving] = useState(false);
@@ -53,6 +54,10 @@ function NewEventPage() {
       toast.error("Nama acara wajib diisi");
       return;
     }
+    if (!date || !date.trim()) {
+      toast.error("Tanggal acara wajib diisi, tidak boleh kosong");
+      return;
+    }
     if (pin.trim().length < 4) {
       toast.error("PIN keamanan event wajib diisi minimal 4 digit angka");
       return;
@@ -66,11 +71,28 @@ function NewEventPage() {
       toast.error("Tarif harus berupa angka yang valid");
       return;
     }
+
     setSaving(true);
     try {
+      // Validasi duplikasi nama event (mengabaikan spasi depan, tengah, dan belakang)
+      const normalizedInput = normalizeEventName(name);
+      try {
+        const existingEvents = await fetchEventsWithCache();
+        const isDuplicate = existingEvents.some(
+          (e) => normalizeEventName(e.name) === normalizedInput,
+        );
+        if (isDuplicate) {
+          toast.error("Nama event sudah pernah digunakan. Harap gunakan nama event yang berbeda (spasi tidak membedakan nama).");
+          setSaving(false);
+          return;
+        }
+      } catch {
+        // jika offline dan cache belum ada, lanjutkan
+      }
+
       const event = await createEvent({
         name,
-        event_date: date || null,
+        event_date: date,
         vehicle_types: clean.map((t) => ({ name: t.name.trim(), tariff: Math.round(t.tariff) })),
       });
       // Simpan PIN dan buka sesi untuk event yang baru dibuat
@@ -119,7 +141,7 @@ function NewEventPage() {
 
         <div className="space-y-2">
           <label htmlFor="event-date" className="text-sm font-semibold text-foreground">
-            Tanggal Acara
+            Tanggal Acara <span className="text-destructive">*</span>
           </label>
           <Input
             id="event-date"
@@ -127,7 +149,11 @@ function NewEventPage() {
             value={date}
             onChange={(e) => setDate(e.target.value)}
             className="h-12 text-base"
+            required
           />
+          <p className="text-[11px] text-muted-foreground">
+            Tanggal pelaksanaan event (wajib diisi).
+          </p>
         </div>
 
         <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3.5">
