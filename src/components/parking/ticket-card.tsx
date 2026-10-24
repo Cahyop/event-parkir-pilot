@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { AlertTriangle, Loader2, Printer, Smartphone } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2, Printer, Smartphone } from "lucide-react";
 
 import { formatDateTime, formatRupiah, paymentStatusLabel } from "@/lib/parking";
 import type { ParkingEvent, Ticket } from "@/lib/types";
@@ -26,6 +26,7 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
   const [btStage, setBtStage] = useState<PrintProgressStage | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
   const bluetoothOk = bluetoothPrintAvailable();
+  const isIframe = typeof window !== "undefined" && window.self !== window.top;
 
   useEffect(() => {
     let alive = true;
@@ -126,6 +127,25 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
       </div>
 
       <div className="space-y-2 border-t border-border bg-muted/50 p-4">
+        {isIframe && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-left text-xs text-amber-800 dark:text-amber-200">
+            <p className="font-bold">⚠️ Mode Preview Editor Terdeteksi</p>
+            <p className="mt-1">
+              Browser memblokir dialog Bluetooth jika dibuka di dalam panel preview editor. Buka langsung di tab baru browser Google Chrome di HP Anda agar dialog Bluetooth bisa muncul.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(window.location.href, "_blank")}
+              className="mt-2 h-8 gap-1.5 border-amber-600 bg-amber-500/20 text-xs font-bold text-amber-900 hover:bg-amber-500/30 dark:text-amber-100"
+            >
+              <ExternalLink className="size-3.5" aria-hidden />
+              Buka di Tab Baru Chrome
+            </Button>
+          </div>
+        )}
+
         {printError && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-left text-xs text-destructive">
             <div className="flex items-center gap-1.5 font-bold">

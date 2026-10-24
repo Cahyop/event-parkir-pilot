@@ -14,6 +14,7 @@ interface BluetoothRemoteGATTCharacteristic {
     readonly writeWithoutResponse: boolean;
   };
   writeValue(value: BufferSource): Promise<ArrayBuffer>;
+  writeValueWithoutResponse?(value: BufferSource): Promise<void>;
 }
 
 interface BluetoothRemoteGATTService {
@@ -34,6 +35,7 @@ interface Bluetooth {
   requestDevice(options?: {
     filters?: Array<{ services: Array<string | number> }>;
     optionalServices?: Array<string | number>;
+    acceptAllDevices?: boolean;
   }): Promise<BluetoothDevice>;
 }
 
@@ -45,6 +47,17 @@ declare global {
 
 const PRINTER_SERVICE = "000018f0-0000-1000-8000-00805f9b34fb";
 const PRINTER_CHARACTERISTIC = "00002af1-0000-1000-8000-00805f9b34fb";
+
+const COMMON_PRINTER_SERVICES = [
+  PRINTER_SERVICE,
+  "000018f0-0000-1000-8000-00805f9b34fb",
+  "0000ff00-0000-1000-8000-00805f9b34fb",
+  "0000ffe0-0000-1000-8000-00805f9b34fb",
+  "0000fee7-0000-1000-8000-00805f9b34fb",
+  "0000af30-0000-1000-8000-00805f9b34fb",
+  "e7810a71-73ae-499d-8c15-faa9aef0c3f2",
+  "49535343-fe7d-4ae5-8fa9-9fafd205e455",
+];
 
 export function bluetoothPrintAvailable(): boolean {
   return typeof navigator !== "undefined" && "bluetooth" in navigator && !!navigator.bluetooth;
@@ -125,7 +138,16 @@ async function writeChunked(
 ): Promise<void> {
   const CHUNK = 160;
   for (let i = 0; i < data.length; i += CHUNK) {
-    await characteristic.writeValue(data.slice(i, i + CHUNK));
+    const chunk = data.slice(i, i + CHUNK);
+    if (
+      characteristic.writeValueWithoutResponse &&
+      characteristic.properties.writeWithoutResponse &&
+      !characteristic.properties.write
+    ) {
+      await characteristic.writeValueWithoutResponse(chunk);
+    } else {
+      await characteristic.writeValue(chunk);
+    }
     await new Promise((r) => setTimeout(r, 25));
   }
 }
@@ -157,27 +179,56 @@ export async function printTicketBluetooth(
   opts: TicketPrinterOptions = { widthMm: 58 },
   onProgress?: PrintProgressCallback,
 ): Promise<void> {
+  if (typeof window !== "undefined" && window.self !== window.top) {
+    throw new Error(
+      "Akses Bluetooth diblokir di dalam frame/preview editor. Silakan buka aplikasi langsung di tab baru browser Google Chrome di HP Anda.",
+    );
+  }
+
   if (!bluetoothPrintAvailable()) {
-    throw new Error("Web Bluetooth tidak tersedia di browser ini. Gunakan Chrome/Edge di Android.");
+    throw new Error(
+      "Web Bluetooth tidak didukung browser ini. Gunakan Google Chrome di HP Android dengan koneksi HTTPS.",
+    );
   }
 
   let device: BluetoothDevice;
   try {
     onProgress?.("selecting");
+    // Gunakan acceptAllDevices: true agar dialog pencarian Bluetooth Chrome memunculkan semua printer di sekitar,
+    // karena printer kasir umumnya tidak menyertakan service UUID di paket advertising awal.
     device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [PRINTER_SERVICE] }, { services: [0xff00] }],
-      optionalServices: [PRINTER_SERVICE, 0xff00],
+      acceptAllDevices: true,
+      optionalServices: COMMON_PRINTER_SERVICES,
     });
   } catch (err) {
-    if (
-      err instanceof Error &&
-      (err.name === "NotFoundError" ||
-        err.message.toLowerCase().includes("user cancelled") ||
-        err.message.toLowerCase().includes("cancelled"))
-    ) {
-      const cancelErr = new Error("Pemilihan printer dibatalkan");
-      cancelErr.name = "UserCancelledError";
-      throw cancelErr;
+    if (err instanceof Error) {
+      const msg = err.message.toLowerCase();
+      // Hanya anggap batal jika benar-benar user yang menekan "Cancel / Batal" di chooser
+      if (msg.includes("user cancelled") || msg.includes("chooser was cancelled")) {
+        const cancelErr = new Error("Pemilihan printer dibatalkan");
+        cancelErr.name = "UserCancelledError";
+        throw cancelErr;
+      }
+      if (msg.includes("adapter not available") || msg.includes("turned off")) {
+        throw new Error(
+          "Bluetooth di HP Anda sedang MATI. Silakan aktifkan Bluetooth di Pengaturan / Quick Settings HP Anda lalu coba lagi.",
+        );
+      }
+      if (msg.includes("permissions policy") || msg.includes("disallowed")) {
+        throw new Error(
+          "Akses Bluetooth diblokir oleh frame/iframe. Silakan buka aplikasi langsung di tab baru browser Chrome HP Anda.",
+        );
+      }
+      if (msg.includes("no devices found") || msg.includes("no bluetooth devices")) {
+        throw new Error(
+          "Tidak ada printer Bluetooth yang ditemukan. Pastikan printer thermal dalam kondisi ON, baterai cukup, dan berjarak dekat.",
+        );
+      }
+      if (err.name === "NotFoundError") {
+        throw new Error(
+          "Dialog pencarian Bluetooth tidak dapat dibuka. Pastikan Bluetooth HP aktif dan izin 'Perangkat di sekitar' (Nearby devices) diizinkan untuk Chrome.",
+        );
+      }
     }
     throw err;
   }
