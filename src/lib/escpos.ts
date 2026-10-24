@@ -130,21 +130,76 @@ async function writeChunked(
   }
 }
 
+export type PrintProgressStage = "selecting" | "connecting" | "sending";
+export type PrintProgressCallback = (stage: PrintProgressStage) => void;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, ms);
+
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 /** Opens the Bluetooth device picker and prints the ticket. Throws on failure. */
 export async function printTicketBluetooth(
   data: TicketPrintData,
   opts: TicketPrinterOptions = { widthMm: 58 },
+  onProgress?: PrintProgressCallback,
 ): Promise<void> {
   if (!bluetoothPrintAvailable()) {
-    throw new Error("Web Bluetooth tidak tersedia di browser ini");
+    throw new Error("Web Bluetooth tidak tersedia di browser ini. Gunakan Chrome/Edge di Android.");
   }
-  const device = await navigator.bluetooth.requestDevice({
-    filters: [{ services: [PRINTER_SERVICE] }, { services: [0xff00] }],
-    optionalServices: [PRINTER_SERVICE, 0xff00],
-  });
-  const server = await device.gatt!.connect();
+
+  let device: BluetoothDevice;
+  try {
+    onProgress?.("selecting");
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [PRINTER_SERVICE] }, { services: [0xff00] }],
+      optionalServices: [PRINTER_SERVICE, 0xff00],
+    });
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      (err.name === "NotFoundError" ||
+        err.message.toLowerCase().includes("user cancelled") ||
+        err.message.toLowerCase().includes("cancelled"))
+    ) {
+      const cancelErr = new Error("Pemilihan printer dibatalkan");
+      cancelErr.name = "UserCancelledError";
+      throw cancelErr;
+    }
+    throw err;
+  }
+
+  if (!device.gatt) {
+    throw new Error("Perangkat Bluetooth yang dipilih tidak mendukung GATT connection.");
+  }
+
+  onProgress?.("connecting");
+  const server = await withTimeout(
+    device.gatt.connect(),
+    12000,
+    "Waktu koneksi habis (timeout 12 detik). Pastikan printer dalam keadaan ON, jarak dekat, dan tidak sedang terkoneksi ke perangkat lain.",
+  );
+
+  const services = await withTimeout(
+    server.getPrimaryServices(),
+    8000,
+    "Gagal membaca service printer (timeout). Coba matikan dan hidupkan kembali printer thermal Anda.",
+  );
+
   let characteristic: BluetoothRemoteGATTCharacteristic | null = null;
-  const services = await server.getPrimaryServices();
   for (const service of services) {
     const chars = await service.getCharacteristics();
     const match = chars.find(
@@ -157,6 +212,17 @@ export async function printTicketBluetooth(
       break;
     }
   }
-  if (!characteristic) throw new Error("Karakteristik printer tidak ditemukan");
-  await writeChunked(characteristic, buildTicketBytes(data, opts));
+
+  if (!characteristic) {
+    throw new Error(
+      "Karakteristik pencetakan tidak ditemukan pada perangkat ini. Pastikan Anda memilih printer thermal ESC/POS yang sesuai.",
+    );
+  }
+
+  onProgress?.("sending");
+  await withTimeout(
+    writeChunked(characteristic, buildTicketBytes(data, opts)),
+    12000,
+    "Waktu pengiriman data ke printer habis (timeout). Periksa baterai atau koneksi printer.",
+  );
 }

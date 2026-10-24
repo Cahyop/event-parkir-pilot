@@ -1,10 +1,14 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { Printer, Smartphone } from "lucide-react";
+import { AlertTriangle, Loader2, Printer, Smartphone } from "lucide-react";
 
 import { formatDateTime, formatRupiah, paymentStatusLabel } from "@/lib/parking";
 import type { ParkingEvent, Ticket } from "@/lib/types";
-import { bluetoothPrintAvailable, printTicketBluetooth } from "@/lib/escpos";
+import {
+  bluetoothPrintAvailable,
+  printTicketBluetooth,
+  type PrintProgressStage,
+} from "@/lib/escpos";
 import { printTicketBrowser } from "@/lib/ticket-print";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -19,6 +23,8 @@ interface TicketCardProps {
 export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps) {
   const [qr, setQr] = useState<string | null>(null);
   const [printing, setPrinting] = useState<"bluetooth" | "browser" | null>(null);
+  const [btStage, setBtStage] = useState<PrintProgressStage | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
   const bluetoothOk = bluetoothPrintAvailable();
 
   useEffect(() => {
@@ -45,18 +51,30 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
 
   const printBt = async () => {
     setPrinting("bluetooth");
+    setBtStage("selecting");
+    setPrintError(null);
     try {
-      await printTicketBluetooth(printData(), { widthMm: 58 });
-      toast.success("Tiket terkirim ke printer");
+      await printTicketBluetooth(
+        printData(),
+        { widthMm: 58 },
+        (stage) => setBtStage(stage),
+      );
+      toast.success("Karcis berhasil dicetak ke printer thermal");
     } catch (e) {
       console.error(e);
-      toast.error(
-        e instanceof Error && e.message === "Web Bluetooth tidak tersedia di browser ini"
-          ? e.message
-          : "Gagal mencetak via Bluetooth. Coba koneksi ulang printer atau gunakan cetak browser.",
-      );
+      if (e instanceof Error && e.name === "UserCancelledError") {
+        toast.info("Pemilihan printer dibatalkan");
+      } else {
+        const msg =
+          e instanceof Error
+            ? e.message
+            : "Gagal mencetak via Bluetooth. Periksa koneksi printer atau gunakan cetak browser.";
+        setPrintError(msg);
+        toast.error(msg, { duration: 6000 });
+      }
     } finally {
       setPrinting(null);
+      setBtStage(null);
     }
   };
 
@@ -70,6 +88,14 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
     } finally {
       setPrinting(null);
     }
+  };
+
+  const getBtButtonLabel = () => {
+    if (printing !== "bluetooth") return "Cetak Thermal (Bluetooth)";
+    if (btStage === "selecting") return "Memilih printer Bluetooth…";
+    if (btStage === "connecting") return "Menghubungkan ke printer…";
+    if (btStage === "sending") return "Mengirim data cetak…";
+    return "Memproses cetak…";
   };
 
   return (
@@ -98,17 +124,41 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
           </div>
         )}
       </div>
+
       <div className="space-y-2 border-t border-border bg-muted/50 p-4">
+        {printError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-left text-xs text-destructive">
+            <div className="flex items-center gap-1.5 font-bold">
+              <AlertTriangle className="size-4 shrink-0" aria-hidden />
+              <span>Gagal Terhubung ke Printer</span>
+            </div>
+            <p className="mt-1 text-foreground/90">{printError}</p>
+            <p className="mt-1.5 text-muted-foreground">
+              Tip: Pastikan printer thermal Bluetooth dalam keadaan ON & jarak dekat. Atau gunakan{" "}
+              <strong>Cetak via Browser</strong> di bawah.
+            </p>
+          </div>
+        )}
+
         {bluetoothOk ? (
-          <Button
-            onClick={printBt}
-            disabled={printing !== null}
-            className="h-13 w-full text-base font-bold"
-            size="lg"
-          >
-            <Printer className="size-5" aria-hidden />
-            {printing === "bluetooth" ? "Mengirim ke printer…" : "Cetak Thermal (Bluetooth)"}
-          </Button>
+          <>
+            <Button
+              onClick={printBt}
+              disabled={printing !== null}
+              className="h-13 w-full text-base font-bold"
+              size="lg"
+            >
+              {printing === "bluetooth" ? (
+                <Loader2 className="size-5 animate-spin" aria-hidden />
+              ) : (
+                <Printer className="size-5" aria-hidden />
+              )}
+              {getBtButtonLabel()}
+            </Button>
+            <p className="text-center text-[11px] text-muted-foreground">
+              Pastikan printer thermal ON. Dialog pencarian Bluetooth akan muncul.
+            </p>
+          </>
         ) : (
           <p className="text-center text-xs text-muted-foreground">
             Cetak Bluetooth tersedia di Android (Chrome). Gunakan tombol di bawah di perangkat lain.
