@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Lock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { createEvent } from "@/lib/ticket-store";
+import { setEventPin, unlockEvent } from "@/lib/event-pin";
 import type { VehicleType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ function NewEventPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
+  const [pin, setPin] = useState("");
   const [types, setTypes] = useState<VehicleType[]>([{ name: "Motor", tariff: 3000 }]);
   const [saving, setSaving] = useState(false);
 
@@ -51,6 +53,10 @@ function NewEventPage() {
       toast.error("Nama acara wajib diisi");
       return;
     }
+    if (pin.trim().length < 4) {
+      toast.error("PIN keamanan event wajib diisi minimal 4 digit angka");
+      return;
+    }
     const clean = types.filter((t) => t.name.trim());
     if (clean.length === 0) {
       toast.error("Minimal satu jenis kendaraan");
@@ -67,7 +73,11 @@ function NewEventPage() {
         event_date: date || null,
         vehicle_types: clean.map((t) => ({ name: t.name.trim(), tariff: Math.round(t.tariff) })),
       });
-      toast.success(`Event "${event.name}" siap digunakan`);
+      // Simpan PIN dan buka sesi untuk event yang baru dibuat
+      setEventPin(event.id, pin.trim());
+      unlockEvent(event.id, pin.trim());
+
+      toast.success(`Event "${event.name}" berhasil dibuat`);
       void navigate({ to: "/event/$id", params: { id: event.id }, replace: true });
     } catch (e) {
       console.error(e);
@@ -118,6 +128,29 @@ function NewEventPage() {
             onChange={(e) => setDate(e.target.value)}
             className="h-12 text-base"
           />
+        </div>
+
+        <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3.5">
+          <div className="flex items-center gap-1.5 text-primary">
+            <Lock className="size-4" aria-hidden />
+            <label htmlFor="event-pin" className="text-sm font-bold">
+              PIN Keamanan Event (4-6 Digit Angka)
+            </label>
+          </div>
+          <Input
+            id="event-pin"
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            placeholder="Misal: 1234"
+            className="tabular h-12 text-center font-display text-xl font-bold tracking-[0.3em]"
+            required
+          />
+          <p className="text-[11px] text-muted-foreground">
+            PIN ini diperlukan operator setiap kali membuka dan mengelola event ini.
+          </p>
         </div>
 
         <div className="space-y-3">

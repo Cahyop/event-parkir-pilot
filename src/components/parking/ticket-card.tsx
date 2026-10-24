@@ -1,15 +1,31 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { AlertTriangle, ExternalLink, Loader2, Printer, Smartphone } from "lucide-react";
+import {
+  AlertTriangle,
+  Bluetooth,
+  ExternalLink,
+  FileText,
+  Loader2,
+  Printer,
+  Smartphone,
+} from "lucide-react";
 
 import { formatDateTime, formatRupiah, paymentStatusLabel } from "@/lib/parking";
 import type { ParkingEvent, Ticket } from "@/lib/types";
 import {
   bluetoothPrintAvailable,
+  getConnectedPrinterName,
+  isBluetoothPrinterConnected,
   printTicketBluetooth,
   type PrintProgressStage,
 } from "@/lib/escpos";
 import { printTicketBrowser } from "@/lib/ticket-print";
+import {
+  getTicketTemplate,
+  TICKET_TEMPLATES,
+  type TicketTemplate,
+} from "@/lib/ticket-settings";
+import { TemplateSelectorDialog } from "@/components/parking/template-selector-dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -25,8 +41,13 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
   const [printing, setPrinting] = useState<"bluetooth" | "browser" | null>(null);
   const [btStage, setBtStage] = useState<PrintProgressStage | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
+  const [template, setTemplate] = useState<TicketTemplate>(() => getTicketTemplate());
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+
   const bluetoothOk = bluetoothPrintAvailable();
   const isIframe = typeof window !== "undefined" && window.self !== window.top;
+  const isPrinterConnected = isBluetoothPrinterConnected();
+  const connectedPrinterName = getConnectedPrinterName();
 
   useEffect(() => {
     let alive = true;
@@ -57,7 +78,7 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
     try {
       await printTicketBluetooth(
         printData(),
-        { widthMm: 58 },
+        { widthMm: 58, template },
         (stage) => setBtStage(stage),
       );
       toast.success("Karcis berhasil dicetak ke printer thermal");
@@ -82,7 +103,7 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
   const printBrowser = async () => {
     setPrinting("browser");
     try {
-      await printTicketBrowser(printData());
+      await printTicketBrowser(printData(), { template });
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "Gagal membuka jendela cetak.");
@@ -92,12 +113,19 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
   };
 
   const getBtButtonLabel = () => {
-    if (printing !== "bluetooth") return "Cetak Thermal (Bluetooth)";
+    if (printing !== "bluetooth") {
+      return isPrinterConnected
+        ? `Cetak ke ${connectedPrinterName || "Printer"}`
+        : "Cetak Thermal (Bluetooth)";
+    }
     if (btStage === "selecting") return "Memilih printer Bluetooth…";
     if (btStage === "connecting") return "Menghubungkan ke printer…";
     if (btStage === "sending") return "Mengirim data cetak…";
     return "Memproses cetak…";
   };
+
+  const currentTemplateInfo =
+    TICKET_TEMPLATES.find((t) => t.id === template) || TICKET_TEMPLATES[0]!;
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -127,6 +155,30 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
       </div>
 
       <div className="space-y-2 border-t border-border bg-muted/50 p-4">
+        {/* Template Selector Bar */}
+        <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <FileText className="size-3.5 text-primary" />
+            <span>Format Cetak:</span>
+            <span className="font-bold text-foreground">{currentTemplateInfo.name}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowTemplateDialog(true)}
+            className="font-bold text-primary hover:underline"
+          >
+            Ubah
+          </button>
+        </div>
+
+        {isPrinterConnected && (
+          <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+            <span className="size-2 rounded-full bg-emerald-500" />
+            <Bluetooth className="size-3.5" />
+            <span>Terhubung: {connectedPrinterName}</span>
+          </div>
+        )}
+
         {isIframe && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-left text-xs text-amber-800 dark:text-amber-200">
             <p className="font-bold">⚠️ Mode Preview Editor Terdeteksi</p>
@@ -176,7 +228,9 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
               {getBtButtonLabel()}
             </Button>
             <p className="text-center text-[11px] text-muted-foreground">
-              Pastikan printer thermal ON. Dialog pencarian Bluetooth akan muncul.
+              {isPrinterConnected
+                ? "Koneksi printer tersimpan — mencetak langsung tanpa dialog pencarian."
+                : "Pastikan printer thermal ON. Dialog pencarian Bluetooth akan muncul."}
             </p>
           </>
         ) : (
@@ -203,6 +257,13 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
           </Button>
         )}
       </div>
+
+      <TemplateSelectorDialog
+        open={showTemplateDialog}
+        onOpenChange={setShowTemplateDialog}
+        selectedTemplate={template}
+        onSelect={setTemplate}
+      />
     </div>
   );
 }
@@ -220,8 +281,8 @@ export function Row({ label, value, strong }: RowProps) {
       <span
         className={
           strong
-            ? "tabular font-display text-lg font-bold tracking-wide text-foreground"
-            : "tabular font-semibold text-foreground"
+          ? "tabular font-display text-lg font-bold tracking-wide text-foreground"
+          : "tabular font-semibold text-foreground"
         }
       >
         {value}
