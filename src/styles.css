@@ -156,3 +156,20 @@
 @utility pb-safe {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
 }
+
+/* Scanner QR Code: video selalu proporsional 1:1 dan kotak fokus persegi sempurna */
+#qr-reader-box {
+  position: relative !important;
+}
+
+#qr-reader-box video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 1rem !important;
+}
+
+#qr-reader-box__scan_region {
+  border-radius: 0.75rem !important;
+}
+
