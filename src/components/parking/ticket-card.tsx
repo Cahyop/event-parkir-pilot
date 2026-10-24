@@ -249,6 +249,46 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
               )}
             </div>
           )}
+
+          {/* 4. Format Struk Kasir Resmi */}
+          {template === "formal" && (
+            <div className="mx-auto max-w-[300px] rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white p-4 font-mono text-black shadow-sm transition-all">
+              <div className="text-center text-[10px] font-bold tracking-wider text-neutral-700">=== STRUK RESMI PARKIR ===</div>
+              <div className="text-center font-bold text-sm mt-0.5 tracking-tight">{event.name}</div>
+              <div className="my-1.5 border-t-2 border-double border-neutral-400" />
+              <div className="text-center font-black text-2xl tracking-wider py-0.5">{ticket.plate}</div>
+              <div className="my-1.5 border-t border-neutral-300" />
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Kode Tiket</span>
+                  <span className="font-bold">{ticket.code}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Kendaraan</span>
+                  <span>{ticket.vehicle_type}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Biaya</span>
+                  <span className="font-bold">{formatRupiah(ticket.tariff)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Status</span>
+                  <span>{paymentStatusLabel(ticket.payment_status)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Waktu Masuk</span>
+                  <span>{formatDateTime(ticket.entry_at)}</span>
+                </div>
+              </div>
+              <div className="my-1.5 border-t-2 border-double border-neutral-400" />
+              {qr && (
+                <div className="flex flex-col items-center pt-1">
+                  <img src={qr} alt={`QR ${ticket.code}`} className="size-32" />
+                  <p className="mt-1 text-[10px] text-neutral-500">Simpan struk sebagai bukti resmi</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

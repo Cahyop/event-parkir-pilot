@@ -369,6 +369,60 @@ function CheckInPage() {
           </div>
         </section>
 
+        {/* Pilihan Desain Struk Cetak */}
+        <section>
+          <div className="mb-1.5 flex items-center justify-between">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <FileText className="size-3.5 text-primary" />
+              Pilihan Desain Struk ({TICKET_TEMPLATES.length} Format)
+            </h2>
+            <span className="text-[11px] font-bold text-primary">
+              {currentTemplate.name}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {TICKET_TEMPLATES.map((t) => {
+              const isSelected = template === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    setTemplate(t.id);
+                    setTicketTemplate(t.id);
+                    toast.success(`Format struk: ${t.name}`);
+                  }}
+                  className={cn(
+                    "flex flex-col items-start rounded-xl border-2 p-2.5 text-left transition-all",
+                    isSelected
+                      ? "border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/40"
+                      : "border-border bg-card text-foreground hover:bg-accent/40",
+                  )}
+                >
+                  <div className="flex w-full items-center justify-between gap-1">
+                    <span className="font-display text-xs font-bold truncate">
+                      {t.name}
+                    </span>
+                    <span
+                      className={cn(
+                        "rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0",
+                        isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {t.savings}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground line-clamp-1 leading-tight">
+                    {t.desc}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         {/* Tombol Aksi: Langsung Cetak vs Pratinjau Karcis */}
         <div className="space-y-2 pt-1">
           {/* Tombol Utama: Langsung Cetak Tanpa Preview */}

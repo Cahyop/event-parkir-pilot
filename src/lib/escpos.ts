@@ -3,6 +3,7 @@
  * (58mm/80mm). Web Bluetooth works on Android Chrome/Edge — iOS is not
  * supported, so callers must keep the browser-print fallback available.
  */
+import QRCode from "qrcode";
 import { formatRupiah } from "./parking";
 import type { TicketPrintData } from "./types";
 import { getTicketTemplate, type TicketTemplate } from "./ticket-settings";
@@ -107,6 +108,57 @@ function padLine(text: string, width: number): string {
   return text + " ".repeat(width - text.length);
 }
 
+/**
+ * Builds raster bitmap bytes for QR code using universal ESC/POS GS v 0.
+ * Works on 100% of thermal printers (including budget POS-58, RPP02, GOOJPRT
+ * that do NOT support EPSON's proprietary GS ( k command).
+ */
+function buildQrRasterBytes(text: string, scale = 5, widthMm: 58 | 80 = 58): number[] {
+  try {
+    const totalDots = widthMm === 58 ? 384 : 576;
+    const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
+    const size = qr.modules.size;
+    const totalBytesPerLine = Math.floor(totalDots / 8);
+    const qrPixelWidth = size * scale;
+    const qrBytesPerLine = Math.ceil(qrPixelWidth / 8);
+    const leftPadBytes = Math.max(0, Math.floor((totalBytesPerLine - qrBytesPerLine) / 2));
+    const heightDots = size * scale;
+
+    const bytes: number[] = [];
+    // GS v 0 0 xL xH yL yH
+    const xL = totalBytesPerLine & 0xff;
+    const xH = (totalBytesPerLine >> 8) & 0xff;
+    const yL = heightDots & 0xff;
+    const yH = (heightDots >> 8) & 0xff;
+    bytes.push(29, 118, 48, 0, xL, xH, yL, yH);
+
+    for (let r = 0; r < size; r++) {
+      const rowBytes = new Uint8Array(totalBytesPerLine);
+      for (let c = 0; c < size; c++) {
+        if (qr.modules.get(r, c)) {
+          for (let s = 0; s < scale; s++) {
+            const bitPos = leftPadBytes * 8 + c * scale + s;
+            const byteIdx = Math.floor(bitPos / 8);
+            const bitIdx = 7 - (bitPos % 8);
+            if (byteIdx < totalBytesPerLine) {
+              rowBytes[byteIdx] |= 1 << bitIdx;
+            }
+          }
+        }
+      }
+      for (let s = 0; s < scale; s++) {
+        for (let b = 0; b < totalBytesPerLine; b++) {
+          bytes.push(rowBytes[b]);
+        }
+      }
+    }
+    return bytes;
+  } catch (e) {
+    console.error("Gagal generate QR raster:", e);
+    return [];
+  }
+}
+
 function buildTicketBytes(data: TicketPrintData, opts: TicketPrinterOptions): Uint8Array {
   const enc = new TextEncoder();
   const bytes: number[] = [];
@@ -116,13 +168,14 @@ function buildTicketBytes(data: TicketPrintData, opts: TicketPrinterOptions): Ui
   };
   const width = charsPerLine(opts.widthMm);
   const line = "-".repeat(width);
+  const dline = "=".repeat(width);
   const template = opts.template || getTicketTemplate();
 
   // Reset printer
   push(27, 64);
 
   if (template === "compact") {
-    // === FORMAT HEMAT KERTAS (ECO - REKOMENDASI) ===
+    // === 1. FORMAT HEMAT KERTAS (ECO - REKOMENDASI) ===
     push(27, 97, 49); // center
     push(27, 69, 1);  // bold
     text(data.eventName + "\n");
@@ -141,24 +194,19 @@ function buildTicketBytes(data: TicketPrintData, opts: TicketPrinterOptions): Ui
     text(padLine(`${data.code} · ${data.statusLabel}`, width) + "\n");
     text(line + "\n");
 
-    // QR Code Ringkas (Module size 4)
-    push(27, 97, 49); // center
-    push(29, 40, 107, 4, 0, 49, 65, 50, 0); // model 2
-    push(29, 40, 107, 3, 0, 49, 67, 4);      // module size 4 (hemat ~35%)
-    push(29, 40, 107, 3, 0, 49, 69, 49);     // correction M
-    const qrBytes = enc.encode(data.code);
-    const len = qrBytes.length + 3;
-    push(29, 40, 107, len & 0xff, (len >> 8) & 0xff, 49, 80, ...qrBytes);
-    push(29, 40, 107, 3, 0, 49, 81, 48);     // print QR
+    // Cetak QR Code sebagai grafik raster bitmap murni (GS v 0)
+    const qrBytes = buildQrRasterBytes(data.code, 5, opts.widthMm);
+    push(...qrBytes);
 
+    push(27, 97, 49); // center
     text("\nScan saat keluar\n");
-    push(27, 100, 2); // feed hanya 2 baris (hemat kertas)
+    push(27, 100, 2); // feed 2 baris
     push(29, 86, 66, 0); // cut
     return new Uint8Array(bytes);
   }
 
   if (template === "super_compact") {
-    // === FORMAT SUPER HEMAT (MINI) ===
+    // === 2. FORMAT SUPER HEMAT (MINI - ANTREAN PADAT) ===
     push(27, 97, 49); // center
     text(data.eventName + "\n");
     push(27, 33, 48); // double width/height
@@ -167,29 +215,58 @@ function buildTicketBytes(data: TicketPrintData, opts: TicketPrinterOptions): Ui
     text(`${data.code} | ${data.vehicleType} | ${formatRupiah(data.tariff)}\n`);
     text(`${data.entryAt} (${data.statusLabel})\n`);
 
-    // QR Code Mini (Module size 3)
-    push(29, 40, 107, 4, 0, 49, 65, 50, 0);
-    push(29, 40, 107, 3, 0, 49, 67, 3);
-    push(29, 40, 107, 3, 0, 49, 69, 49);
-    const qrBytes = enc.encode(data.code);
-    const len = qrBytes.length + 3;
-    push(29, 40, 107, len & 0xff, (len >> 8) & 0xff, 49, 80, ...qrBytes);
-    push(29, 40, 107, 3, 0, 49, 81, 48);
+    // Cetak QR Code mini sebagai raster bitmap
+    const qrBytes = buildQrRasterBytes(data.code, 4, opts.widthMm);
+    push(...qrBytes);
 
     text("\n");
     push(27, 100, 1); // feed 1 baris
+    push(29, 86, 66, 0); // cut
+    return new Uint8Array(bytes);
+  }
+
+  if (template === "formal") {
+    // === 3. FORMAT STRUK KASIR RESMI (BORDER & TABEL) ===
+    push(27, 97, 49); // center
+    text("=== STRUK RESMI PARKIR ===\n");
+    push(27, 69, 1);
+    text(data.eventName + "\n");
+    push(27, 69, 0);
+    text(dline + "\n");
+
+    // Nopol Besar
+    push(27, 33, 56);
+    text(data.plate + "\n");
+    push(27, 33, 0);
+    text(line + "\n");
+
+    push(27, 97, 48); // left
+    text(padLine("Kode Tiket : " + data.code, width) + "\n");
+    text(padLine("Kendaraan  : " + data.vehicleType, width) + "\n");
+    text(padLine("Biaya      : " + formatRupiah(data.tariff), width) + "\n");
+    text(padLine("Status     : " + data.statusLabel, width) + "\n");
+    text(padLine("Waktu Masuk: " + data.entryAt, width) + "\n");
+    text(dline + "\n");
+
+    // QR Code
+    const qrBytes = buildQrRasterBytes(data.code, 6, opts.widthMm);
+    push(...qrBytes);
+
+    push(27, 97, 49);
+    text("\nSimpan struk sebagai bukti resmi\n");
+    push(27, 100, 3);
     push(29, 86, 66, 0);
     return new Uint8Array(bytes);
   }
 
-  // === FORMAT STANDAR (LENGKAP) ===
-  push(27, 97, 49);
+  // === 4. FORMAT STANDAR (LENGKAP) ===
+  push(27, 97, 49); // center
   push(27, 33, 56);
   text(data.eventName + "\n");
   push(27, 33, 0);
   text(line + "\n");
 
-  push(27, 97, 48);
+  push(27, 97, 48); // left
   text(padLine("Kode: " + data.code, width) + "\n");
   text(padLine("Nopol: " + data.plate, width) + "\n");
   text(padLine("Jenis: " + data.vehicleType, width) + "\n");
@@ -198,15 +275,11 @@ function buildTicketBytes(data: TicketPrintData, opts: TicketPrinterOptions): Ui
   text(padLine("Masuk: " + data.entryAt, width) + "\n");
   text(line + "\n");
 
-  push(27, 97, 49);
-  push(29, 40, 107, 4, 0, 49, 65, 50, 0);
-  push(29, 40, 107, 3, 0, 49, 67, 6);
-  push(29, 40, 107, 3, 0, 49, 69, 49);
-  const qrBytes = enc.encode(data.code);
-  const len = qrBytes.length + 3;
-  push(29, 40, 107, len & 0xff, (len >> 8) & 0xff, 49, 80, ...qrBytes);
-  push(29, 40, 107, 3, 0, 49, 81, 48);
+  // Cetak QR Code sebagai raster bitmap (GS v 0)
+  const qrBytes = buildQrRasterBytes(data.code, 6, opts.widthMm);
+  push(...qrBytes);
 
+  push(27, 97, 49);
   text("\nScan QR saat keluar\n");
   push(27, 100, 4);
   push(29, 86, 66, 0);

@@ -50,6 +50,24 @@ export async function printTicketBrowser(
       <div class="row" style="text-align:center">${escapeHtml(data.entryAt)} (${escapeHtml(data.statusLabel)})</div>
       <div class="center"><img class="qr" style="width:34mm;height:34mm" src="${qrDataUrl}" alt="QR"></div>
     `;
+  } else if (template === "formal") {
+    bodyContent = `
+      <div class="center" style="font-size:11px;font-weight:bold;letter-spacing:1px">=== STRUK RESMI PARKIR ===</div>
+      <div class="center name">${escapeHtml(data.eventName)}</div>
+      <div class="line" style="border-top:2px double #000"></div>
+      <div class="center plate">${escapeHtml(data.plate)}</div>
+      <div class="line"></div>
+      <table style="width:100%;font-size:11px;line-height:1.4">
+        <tr><td>Kode Tiket</td><td style="text-align:right;font-weight:bold">${escapeHtml(data.code)}</td></tr>
+        <tr><td>Kendaraan</td><td style="text-align:right">${escapeHtml(data.vehicleType)}</td></tr>
+        <tr><td>Biaya</td><td style="text-align:right;font-weight:bold">${escapeHtml(formatRupiah(data.tariff))}</td></tr>
+        <tr><td>Status</td><td style="text-align:right">${escapeHtml(data.statusLabel)}</td></tr>
+        <tr><td>Waktu Masuk</td><td style="text-align:right">${escapeHtml(data.entryAt)}</td></tr>
+      </table>
+      <div class="line" style="border-top:2px double #000"></div>
+      <div class="center"><img class="qr" src="${qrDataUrl}" alt="QR"></div>
+      <div class="center hint">Simpan struk sebagai bukti resmi</div>
+    `;
   } else {
     bodyContent = `
       <div class="center name">${escapeHtml(data.eventName)}</div>
