@@ -37,13 +37,15 @@ function CheckOutPage() {
   );
 
   const results = useMemo(() => {
-    const q = normalizePlate(query);
-    if (!q) return [];
+    const raw = query.trim().toUpperCase();
+    if (!raw) return [];
+    const plateQuery = normalizePlate(raw);
     return tickets
       .filter(
         (t) =>
           (t.exit_at === null || t.exit_at) &&
-          (normalizePlate(t.plate).includes(q) || t.code.toUpperCase().includes(q)),
+          (plateQuery && normalizePlate(t.plate).includes(plateQuery) ||
+            t.code.toUpperCase().includes(raw)),
       )
       .slice(0, 5);
   }, [tickets, query]);
