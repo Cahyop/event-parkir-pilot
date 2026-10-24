@@ -5,7 +5,11 @@
 
 interface BluetoothRemoteGATTCharacteristic {
   readonly uuid: string;
-  readonly properties: Record<string, boolean>;
+  readonly properties: {
+    readonly [key: string]: boolean;
+    readonly write: boolean;
+    readonly writeWithoutResponse: boolean;
+  };
   writeValue(value: BufferSource): Promise<ArrayBuffer>;
 }
 
