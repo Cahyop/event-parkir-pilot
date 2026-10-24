@@ -8,7 +8,7 @@ import {
   makeTicketCode,
   normalizePlate,
   paymentStatusLabel,
-} from "./parking";
+} from "@/lib/parking";
 
 describe("normalizePlate", () => {
   it("uppercases and collapses whitespace", () => {
