@@ -5,6 +5,7 @@ import {
   CloudOff,
   Eye,
   FileText,
+  HelpCircle,
   LogIn,
   Printer,
   Unlink,
@@ -16,6 +17,7 @@ import { useTickets } from "@/hooks/use-tickets";
 import { PlateInput } from "@/components/parking/plate-input";
 import { TicketCard } from "@/components/parking/ticket-card";
 import { TemplateSelectorDialog } from "@/components/parking/template-selector-dialog";
+import { PrinterGuideDialog } from "@/components/parking/printer-guide-dialog";
 import { formatDateTime, formatRupiah, paymentStatusLabel } from "@/lib/parking";
 import {
   bluetoothPrintAvailable,
@@ -58,6 +60,7 @@ function CheckInPage() {
   const [printerName, setPrinterName] = useState(() => getConnectedPrinterName());
   const [template, setTemplate] = useState<TicketTemplate>(() => getTicketTemplate());
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showPrinterGuide, setShowPrinterGuide] = useState(false);
 
   const btAvailable = bluetoothPrintAvailable();
   const currentTemplate =
@@ -75,8 +78,21 @@ function CheckInPage() {
       setPrinterConnected(true);
       toast.success(`Printer "${name}" siap digunakan!`);
     } catch (e) {
-      if (e instanceof Error && e.name === "UserCancelledError") return;
-      toast.error(e instanceof Error ? e.message : "Gagal menyambung printer");
+      if (e instanceof Error && e.name === "UserCancelledError") {
+        toast.info(e.message, {
+          action: {
+            label: "Bantuan",
+            onClick: () => setShowPrinterGuide(true),
+          },
+        });
+        return;
+      }
+      toast.error(e instanceof Error ? e.message : "Gagal menyambung printer", {
+        action: {
+          label: "Bantuan",
+          onClick: () => setShowPrinterGuide(true),
+        },
+      });
     }
   };
 
@@ -208,14 +224,24 @@ function CheckInPage() {
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={handleConnectPrinter}
-            className="flex items-center gap-1.5 font-semibold text-primary hover:underline"
-          >
-            <Bluetooth className="size-3.5" />
-            <span>Sambungkan Printer</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleConnectPrinter}
+              className="flex items-center gap-1.5 font-semibold text-primary hover:underline"
+            >
+              <Bluetooth className="size-3.5" />
+              <span>Sambungkan Printer</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPrinterGuide(true)}
+              className="text-muted-foreground hover:text-foreground"
+              title="Panduan cara menyambungkan printer"
+            >
+              <HelpCircle className="size-3.5" />
+            </button>
+          </div>
         )}
 
         {/* Pilihan Format Karcis */}
@@ -372,6 +398,13 @@ function CheckInPage() {
         onOpenChange={setShowTemplateModal}
         selectedTemplate={template}
         onSelect={setTemplate}
+      />
+
+      {/* Modal Panduan Koneksi Printer */}
+      <PrinterGuideDialog
+        open={showPrinterGuide}
+        onOpenChange={setShowPrinterGuide}
+        onConnectNow={handleConnectPrinter}
       />
     </div>
   );

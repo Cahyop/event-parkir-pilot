@@ -206,7 +206,7 @@ export function TicketCard({ ticket, event, onDone, doneLabel }: TicketCardProps
             </div>
             <p className="mt-1 text-foreground/90">{printError}</p>
             <p className="mt-1.5 text-muted-foreground">
-              Tip: Pastikan printer thermal Bluetooth dalam keadaan ON & jarak dekat. Atau gunakan{" "}
+              Tip: Pastikan printer ON. Jika printer berstatus <strong>"Tersambung"</strong> di pengaturan Bluetooth HP, <strong>putuskan (disconnect)</strong> terlebih dahulu di menu HP karena Chrome memerlukan akses langsung. Atau gunakan{" "}
               <strong>Cetak via Browser</strong> di bawah.
             </p>
           </div>

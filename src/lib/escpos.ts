@@ -36,6 +36,7 @@ interface BluetoothDevice {
 }
 
 interface Bluetooth {
+  getDevices?(): Promise<BluetoothDevice[]>;
   requestDevice(options?: {
     filters?: Array<{ services: Array<string | number> }>;
     optionalServices?: Array<string | number>;
@@ -122,7 +123,6 @@ function buildTicketBytes(data: TicketPrintData, opts: TicketPrinterOptions): Ui
 
   if (template === "compact") {
     // === FORMAT HEMAT KERTAS (ECO - REKOMENDASI) ===
-    // Header
     push(27, 97, 49); // center
     push(27, 69, 1);  // bold
     text(data.eventName + "\n");
@@ -255,8 +255,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): 
   });
 }
 
-/** Menghubungkan printer Bluetooth secara manual & menyimpan koneksinya */
-export async function connectBluetoothPrinter(): Promise<string> {
+/**
+ * Menghubungkan printer Bluetooth dengan dialog pemilihan dan penanganan error yang ramah.
+ * Menyimpan koneksi aktif ke cache untuk cetak instan berikutnya.
+ */
+async function selectAndConnectPrinter(onProgress?: PrintProgressCallback): Promise<{
+  device: BluetoothDevice;
+  characteristic: BluetoothRemoteGATTCharacteristic;
+}> {
   if (typeof window !== "undefined" && window.self !== window.top) {
     throw new Error(
       "Akses Bluetooth diblokir di dalam frame/preview editor. Silakan buka aplikasi langsung di tab baru browser Google Chrome di HP Anda.",
@@ -269,19 +275,65 @@ export async function connectBluetoothPrinter(): Promise<string> {
     );
   }
 
-  const device = await navigator.bluetooth.requestDevice({
-    acceptAllDevices: true,
-    optionalServices: COMMON_PRINTER_SERVICES,
-  });
-
-  if (!device.gatt) {
-    throw new Error("Perangkat Bluetooth yang dipilih tidak mendukung GATT connection.");
+  // Gunakan koneksi yang sudah tersambung jika masih aktif
+  if (activeDevice?.gatt?.connected && activeCharacteristic) {
+    return { device: activeDevice, characteristic: activeCharacteristic };
   }
 
+  onProgress?.("selecting");
+  let device: BluetoothDevice;
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: COMMON_PRINTER_SERVICES,
+    });
+  } catch (err) {
+    if (err instanceof Error) {
+      const msg = err.message.toLowerCase();
+      if (
+        msg.includes("user cancelled") ||
+        msg.includes("chooser was cancelled") ||
+        msg.includes("cancelled")
+      ) {
+        const cancelErr = new Error(
+          "Pemilihan printer dibatalkan. Pastikan Anda memilih nama printer thermal dari daftar yang muncul.",
+        );
+        cancelErr.name = "UserCancelledError";
+        throw cancelErr;
+      }
+      if (msg.includes("adapter not available") || msg.includes("turned off")) {
+        throw new Error(
+          "Bluetooth di HP Anda sedang MATI. Silakan aktifkan Bluetooth di Pengaturan / Quick Settings HP Anda lalu coba lagi.",
+        );
+      }
+      if (msg.includes("permissions policy") || msg.includes("disallowed")) {
+        throw new Error(
+          "Akses Bluetooth diblokir oleh frame/iframe. Silakan buka aplikasi langsung di tab baru browser Chrome HP Anda.",
+        );
+      }
+      if (msg.includes("no devices found") || msg.includes("no bluetooth devices")) {
+        throw new Error(
+          "Tidak ada printer Bluetooth yang ditemukan. Pastikan printer thermal dalam kondisi ON, baterai cukup, dan tidak sedang terkoneksi ke aplikasi lain.",
+        );
+      }
+      if (err.name === "NotFoundError") {
+        throw new Error(
+          "Dialog pencarian Bluetooth tidak dapat dibuka. Pastikan Bluetooth HP aktif dan izin 'Perangkat di sekitar' (Nearby devices) diizinkan untuk Chrome.",
+        );
+      }
+    }
+    throw err;
+  }
+
+  if (!device.gatt) {
+    throw new Error("Perangkat Bluetooth yang dipilih tidak mendukung koneksi GATT.");
+  }
+
+  onProgress?.("connecting");
   const server = await withTimeout(
     device.gatt.connect(),
     12000,
-    "Waktu koneksi habis (timeout 12 detik). Pastikan printer dalam keadaan ON, jarak dekat, dan tidak sedang terkoneksi ke perangkat lain.",
+    "Waktu koneksi habis (timeout 12 detik). Jika printer sudah terhubung di menu Bluetooth HP, putuskan (disconnect) terlebih dahulu di pengaturan Bluetooth HP agar browser Chrome bisa terhubung.",
   );
 
   const services = await withTimeout(
@@ -305,11 +357,19 @@ export async function connectBluetoothPrinter(): Promise<string> {
   }
 
   if (!characteristic) {
-    throw new Error("Karakteristik pencetakan tidak ditemukan pada perangkat ini.");
+    throw new Error(
+      "Karakteristik pencetakan tidak ditemukan pada perangkat ini. Pastikan Anda memilih printer thermal ESC/POS yang sesuai.",
+    );
   }
 
   activeDevice = device;
   activeCharacteristic = characteristic;
+  return { device, characteristic };
+}
+
+/** Menghubungkan printer Bluetooth secara manual & menyimpan koneksinya */
+export async function connectBluetoothPrinter(): Promise<string> {
+  const { device } = await selectAndConnectPrinter();
   return device.name || "Printer Thermal";
 }
 
@@ -319,101 +379,7 @@ export async function printTicketBluetooth(
   opts: TicketPrinterOptions = { widthMm: 58 },
   onProgress?: PrintProgressCallback,
 ): Promise<void> {
-  if (typeof window !== "undefined" && window.self !== window.top) {
-    throw new Error(
-      "Akses Bluetooth diblokir di dalam frame/preview editor. Silakan buka aplikasi langsung di tab baru browser Google Chrome di HP Anda.",
-    );
-  }
-
-  if (!bluetoothPrintAvailable()) {
-    throw new Error(
-      "Web Bluetooth tidak didukung browser ini. Gunakan Google Chrome di HP Android dengan koneksi HTTPS.",
-    );
-  }
-
-  // Gunakan koneksi yang sudah ada jika masih aktif
-  let characteristic = activeCharacteristic;
-  if (!characteristic || !activeDevice?.gatt?.connected) {
-    let device: BluetoothDevice;
-    try {
-      onProgress?.("selecting");
-      device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: COMMON_PRINTER_SERVICES,
-      });
-    } catch (err) {
-      if (err instanceof Error) {
-        const msg = err.message.toLowerCase();
-        if (msg.includes("user cancelled") || msg.includes("chooser was cancelled")) {
-          const cancelErr = new Error("Pemilihan printer dibatalkan");
-          cancelErr.name = "UserCancelledError";
-          throw cancelErr;
-        }
-        if (msg.includes("adapter not available") || msg.includes("turned off")) {
-          throw new Error(
-            "Bluetooth di HP Anda sedang MATI. Silakan aktifkan Bluetooth di Pengaturan / Quick Settings HP Anda lalu coba lagi.",
-          );
-        }
-        if (msg.includes("permissions policy") || msg.includes("disallowed")) {
-          throw new Error(
-            "Akses Bluetooth diblokir oleh frame/iframe. Silakan buka aplikasi langsung di tab baru browser Chrome HP Anda.",
-          );
-        }
-        if (msg.includes("no devices found") || msg.includes("no bluetooth devices")) {
-          throw new Error(
-            "Tidak ada printer Bluetooth yang ditemukan. Pastikan printer thermal dalam kondisi ON, baterai cukup, dan berjarak dekat.",
-          );
-        }
-        if (err.name === "NotFoundError") {
-          throw new Error(
-            "Dialog pencarian Bluetooth tidak dapat dibuka. Pastikan Bluetooth HP aktif dan izin 'Perangkat di sekitar' (Nearby devices) diizinkan untuk Chrome.",
-          );
-        }
-      }
-      throw err;
-    }
-
-    if (!device.gatt) {
-      throw new Error("Perangkat Bluetooth yang dipilih tidak mendukung GATT connection.");
-    }
-
-    onProgress?.("connecting");
-    const server = await withTimeout(
-      device.gatt.connect(),
-      12000,
-      "Waktu koneksi habis (timeout 12 detik). Pastikan printer dalam keadaan ON, jarak dekat, dan tidak sedang terkoneksi ke perangkat lain.",
-    );
-
-    const services = await withTimeout(
-      server.getPrimaryServices(),
-      8000,
-      "Gagal membaca service printer (timeout). Coba matikan dan hidupkan kembali printer thermal Anda.",
-    );
-
-    characteristic = null;
-    for (const service of services) {
-      const chars = await service.getCharacteristics();
-      const match = chars.find(
-        (c) =>
-          c.uuid === PRINTER_CHARACTERISTIC ||
-          (c.properties && (c.properties.write || c.properties.writeWithoutResponse)),
-      );
-      if (match) {
-        characteristic = match;
-        break;
-      }
-    }
-
-    if (!characteristic) {
-      throw new Error(
-        "Karakteristik pencetakan tidak ditemukan pada perangkat ini. Pastikan Anda memilih printer thermal ESC/POS yang sesuai.",
-      );
-    }
-
-    activeDevice = device;
-    activeCharacteristic = characteristic;
-  }
-
+  const { characteristic } = await selectAndConnectPrinter(onProgress);
   onProgress?.("sending");
   await withTimeout(
     writeChunked(characteristic, buildTicketBytes(data, opts)),
@@ -421,4 +387,3 @@ export async function printTicketBluetooth(
     "Waktu pengiriman data ke printer habis (timeout). Periksa baterai atau koneksi printer.",
   );
 }
-
