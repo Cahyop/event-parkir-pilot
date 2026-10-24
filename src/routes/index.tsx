@@ -1,10 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { CalendarDays, ChevronRight, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CalendarDays, ChevronRight, Lock, Plus } from "lucide-react";
 
 import { fetchEventsWithCache } from "@/lib/ticket-store";
 import { supabase } from "@/integrations/supabase/client";
+import { isEventUnlocked } from "@/lib/event-pin";
+import { EventPinDialog } from "@/components/parking/event-pin-dialog";
 import type { ParkingEvent } from "@/lib/types";
 import { formatDateShort } from "@/lib/parking";
 
@@ -23,6 +25,10 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const [selectedEvent, setSelectedEvent] = useState<ParkingEvent | null>(null);
+  const [showPinDialog, setShowPinDialog] = useState(false);
 
   const { data: events, isLoading } = useQuery({
     queryKey: ["events"],
@@ -40,6 +46,17 @@ function Index() {
       void supabase.removeChannel(channel);
     };
   }, [queryClient]);
+
+  const handleSelectEvent = (event: ParkingEvent) => {
+    // Jika event sudah di-unlock di sesi saat ini, langsung masuk
+    if (isEventUnlocked(event.id)) {
+      void navigate({ to: "/event/$id", params: { id: event.id } });
+      return;
+    }
+    // Jika belum di-unlock (atau event baru), buka dialog verifikasi / pembuatan PIN
+    setSelectedEvent(event);
+    setShowPinDialog(true);
+  };
 
   const active = (events ?? []).filter((e) => e.status === "active");
   const archived = (events ?? []).filter((e) => e.status !== "active");
@@ -84,7 +101,7 @@ function Index() {
           ) : (
             <div className="space-y-3">
               {active.map((e) => (
-                <EventCard key={e.id} event={e} />
+                <EventCard key={e.id} event={e} onSelect={handleSelectEvent} />
               ))}
             </div>
           )}
@@ -97,27 +114,47 @@ function Index() {
             </h2>
             <div className="space-y-3">
               {archived.map((e) => (
-                <EventCard key={e.id} event={e} />
+                <EventCard key={e.id} event={e} onSelect={handleSelectEvent} />
               ))}
             </div>
           </section>
         )}
       </main>
+
+      <EventPinDialog
+        event={selectedEvent}
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        onSuccess={() => {
+          if (selectedEvent) {
+            void navigate({ to: "/event/$id", params: { id: selectedEvent.id } });
+          }
+        }}
+      />
     </div>
   );
 }
 
-function EventCard({ event }: { event: ParkingEvent }) {
+function EventCard({
+  event,
+  onSelect,
+}: {
+  event: ParkingEvent;
+  onSelect: (e: ParkingEvent) => void;
+}) {
   return (
-    <Link
-      to="/event/$id"
-      params={{ id: event.id }}
-      className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors active:bg-accent"
+    <button
+      type="button"
+      onClick={() => onSelect(event)}
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/40 active:bg-accent"
     >
       <div className="min-w-0">
-        <p className="truncate font-display text-base font-semibold text-foreground">
-          {event.name}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="truncate font-display text-base font-semibold text-foreground">
+            {event.name}
+          </p>
+          <Lock className="size-3.5 text-muted-foreground" aria-hidden />
+        </div>
         <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
           <CalendarDays className="size-3.5" aria-hidden />
           {event.event_date ? formatDateShort(event.event_date) : "Tanpa tanggal"}
@@ -133,6 +170,6 @@ function EventCard({ event }: { event: ParkingEvent }) {
         </p>
       </div>
       <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-    </Link>
+    </button>
   );
 }

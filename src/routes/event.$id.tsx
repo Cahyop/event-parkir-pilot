@@ -97,7 +97,10 @@ function EventLayout() {
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-3">
           <button
-            onClick={() => navigate({ to: "/", replace: true })}
+            onClick={() => {
+              lockEvent(id);
+              navigate({ to: "/", replace: true });
+            }}
             className="inline-flex size-10 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-accent"
             aria-label="Kembali ke daftar event"
           >
