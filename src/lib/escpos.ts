@@ -6,6 +6,43 @@
 import { formatRupiah } from "./parking";
 import type { TicketPrintData } from "./types";
 
+interface BluetoothRemoteGATTCharacteristic {
+  readonly uuid: string;
+  readonly properties: {
+    readonly [key: string]: boolean;
+    readonly write: boolean;
+    readonly writeWithoutResponse: boolean;
+  };
+  writeValue(value: BufferSource): Promise<ArrayBuffer>;
+}
+
+interface BluetoothRemoteGATTService {
+  readonly uuid: string;
+  getCharacteristics(characteristic?: string | number): Promise<BluetoothRemoteGATTCharacteristic[]>;
+}
+
+interface BluetoothRemoteGATTServer {
+  connect(): Promise<BluetoothRemoteGATTServer>;
+  getPrimaryServices(service?: string | number): Promise<BluetoothRemoteGATTService[]>;
+}
+
+interface BluetoothDevice {
+  readonly gatt: BluetoothRemoteGATTServer | null;
+}
+
+interface Bluetooth {
+  requestDevice(options?: {
+    filters?: Array<{ services: Array<string | number> }>;
+    optionalServices?: Array<string | number>;
+  }): Promise<BluetoothDevice>;
+}
+
+declare global {
+  interface Navigator {
+    readonly bluetooth: Bluetooth;
+  }
+}
+
 const PRINTER_SERVICE = "000018f0-0000-1000-8000-00805f9b34fb";
 const PRINTER_CHARACTERISTIC = "00002af1-0000-1000-8000-00805f9b34fb";
 
