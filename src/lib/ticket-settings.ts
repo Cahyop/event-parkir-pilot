@@ -76,3 +76,20 @@ export function setDirectPrintEnabled(enabled: boolean): void {
     window.localStorage.setItem(DIRECT_PRINT_KEY, enabled ? "true" : "false");
   } catch {}
 }
+
+const PAPER_WIDTH_KEY = "parkir:paper_width";
+
+/** Lebar kertas printer thermal (mm), default 58mm. Diatur di menu Pengaturan. */
+export function getPaperWidth(): 58 | 80 {
+  try {
+    return window.localStorage.getItem(PAPER_WIDTH_KEY) === "80" ? 80 : 58;
+  } catch {
+    return 58;
+  }
+}
+
+export function setPaperWidth(width: 58 | 80): void {
+  try {
+    window.localStorage.setItem(PAPER_WIDTH_KEY, String(width));
+  } catch {}
+}
