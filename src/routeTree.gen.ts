@@ -15,6 +15,7 @@ import { Route as EventsNewRouteImport } from './routes/events.new'
 import { Route as EventIdIndexRouteImport } from './routes/event.$id.index'
 import { Route as EventIdCheckoutRouteImport } from './routes/event.$id.checkout'
 import { Route as EventIdReportRouteImport } from './routes/event.$id.report'
+import { Route as EventIdSettingsRouteImport } from './routes/event.$id.settings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,11 @@ const EventIdReportRoute = EventIdReportRouteImport.update({
   path: '/report',
   getParentRoute: () => EventIdRoute,
 } as any)
+const EventIdSettingsRoute = EventIdSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => EventIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/events/new': typeof EventsNewRoute
   '/event/$id/checkout': typeof EventIdCheckoutRoute
   '/event/$id/report': typeof EventIdReportRoute
+  '/event/$id/settings': typeof EventIdSettingsRoute
   '/event/$id/': typeof EventIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/events/new': typeof EventsNewRoute
   '/event/$id/checkout': typeof EventIdCheckoutRoute
   '/event/$id/report': typeof EventIdReportRoute
+  '/event/$id/settings': typeof EventIdSettingsRoute
   '/event/$id': typeof EventIdIndexRoute
 }
 export interface FileRoutesById {
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/events/new': typeof EventsNewRoute
   '/event/$id/checkout': typeof EventIdCheckoutRoute
   '/event/$id/report': typeof EventIdReportRoute
+  '/event/$id/settings': typeof EventIdSettingsRoute
   '/event/$id/': typeof EventIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/events/new'
     | '/event/$id/checkout'
     | '/event/$id/report'
+    | '/event/$id/settings'
     | '/event/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/events/new'
     | '/event/$id/checkout'
     | '/event/$id/report'
+    | '/event/$id/settings'
     | '/event/$id'
   id:
     | '__root__'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/events/new'
     | '/event/$id/checkout'
     | '/event/$id/report'
+    | '/event/$id/settings'
     | '/event/$id/'
   fileRoutesById: FileRoutesById
 }
@@ -147,18 +159,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventIdReportRouteImport
       parentRoute: typeof EventIdRoute
     }
+    '/event/$id/settings': {
+      id: '/event/$id/settings'
+      path: '/settings'
+      fullPath: '/event/$id/settings'
+      preLoaderRoute: typeof EventIdSettingsRouteImport
+      parentRoute: typeof EventIdRoute
+    }
   }
 }
 
 interface EventIdRouteChildren {
   EventIdCheckoutRoute: typeof EventIdCheckoutRoute
   EventIdReportRoute: typeof EventIdReportRoute
+  EventIdSettingsRoute: typeof EventIdSettingsRoute
   EventIdIndexRoute: typeof EventIdIndexRoute
 }
 
 const EventIdRouteChildren: EventIdRouteChildren = {
   EventIdCheckoutRoute: EventIdCheckoutRoute,
   EventIdReportRoute: EventIdReportRoute,
+  EventIdSettingsRoute: EventIdSettingsRoute,
   EventIdIndexRoute: EventIdIndexRoute,
 }
 
